@@ -95,14 +95,20 @@ class GitHubStarsAnalyzer:
                 print("Make sure azure-identity package is installed")
                 print("You can install it with: uv add azure-identity")
 
-    def get_starred_repos(self, max_pages: int = 10) -> List[Dict[str, Any]]:
-        """Fetch all starred repositories for the user"""
+    def get_starred_repos(self, max_pages: int = None) -> List[Dict[str, Any]]:
+        """Fetch all starred repositories for the user
+        
+        Args:
+            max_pages: Maximum number of pages to fetch. If None, fetch all pages.
+        """
         all_repos = []
         page = 1
+        has_next_page = True
+        total_pages = None
         
         print(f"Fetching starred repositories for {self.username}...")
         
-        while page <= max_pages:
+        while has_next_page and (max_pages is None or page <= max_pages):
             url = f"https://api.github.com/users/{self.username}/starred?page={page}&per_page=100"
             response = requests.get(url, headers=self.headers)
             
@@ -115,6 +121,21 @@ class GitHubStarsAnalyzer:
                 break
                 
             all_repos.extend(repos)
+            
+            # Check for Link header to determine if there are more pages
+            if 'Link' in response.headers:
+                links = response.headers['Link']
+                has_next_page = 'rel="next"' in links
+                
+                # If we don't yet know the total number of pages, try to extract it
+                if total_pages is None and 'rel="last"' in links:
+                    last_page_match = re.search(r'page=(\d+).*?rel="last"', links)
+                    if last_page_match:
+                        total_pages = int(last_page_match.group(1))
+                        print(f"Total pages available: {total_pages}")
+            else:
+                has_next_page = False
+            
             page += 1
             
             # GitHub API rate limiting
@@ -307,7 +328,7 @@ class GitHubStarsAnalyzer:
         
         try:
             response = self.client.chat.completions.create(
-                deployment_name=deployment_name,
+                model=deployment_name,
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": prompt}
@@ -478,7 +499,7 @@ def main():
     parser.add_argument("--export", "-e", help="Export results to JSON file")
     parser.add_argument("--search", "-s", help="Search repositories with query")
     parser.add_argument("--limit", "-l", type=int, default=10, help="Limit search results")
-    parser.add_argument("--max-pages", "-m", type=int, default=10, help="Maximum pages of stars to fetch (100 per page)")
+    parser.add_argument("--max-pages", "-m", type=int, help="Maximum pages of stars to fetch (100 per page). If not specified, fetch all pages.")
     parser.add_argument("--github-token", help="GitHub personal access token")
     
     # AI provider selection
