@@ -54,13 +54,13 @@ uv run python test_ollama.py --model "qwen2.5-coder:latest"
 
 ```bash
 # Using OpenAI
-uv run main_sqlite.py --username kdcllc --ai-provider openai --openai-key "your-key" --max-pages 1
+uv run main.py --username kdcllc --ai-provider openai --openai-key "your-key" --max-pages 1
 
 # Using Azure OpenAI
-uv run main_sqlite.py --username kdcllc --ai-provider azure --azure-key "your-key" --azure-endpoint "your-endpoint" --azure-deployment "your-deployment" --max-pages 1
+uv run main.py --username kdcllc --ai-provider azure --azure-key "your-key" --azure-endpoint "your-endpoint" --azure-deployment "your-deployment" --max-pages 1
 
 # Using Ollama (local)
-uv run main_sqlite.py --username kdcllc --ai-provider ollama --model "qwen2.5-coder:latest" --max-pages 1
+uv run main.py --username kdcllc --ai-provider ollama --model "qwen2.5-coder:latest" --max-pages 1
 ```
 
 
@@ -107,7 +107,7 @@ uv run main.py <github_username> --ai-provider ollama --ollama-url http://your-o
 
 ```bash
 # Search repositories by semantic similarity
-uv run main_sqlite.py --search "docker containerization" --db github_stars.db --username username
+uv run main.py --search "docker containerization" --db github_stars.db --username username
 ```
 
 ## OpenAI SDK v1.0+ Integration
