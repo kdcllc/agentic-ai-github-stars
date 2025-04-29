@@ -1,0 +1,17 @@
+[project]
+name = "github-stars"
+version = "0.1.0"
+description = "AI Agent that fetches GitHub starred repos and creates summaries"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "markdown",
+    "openai>=1.0.0",
+    "tqdm",
+    "azure-identity",
+    "numpy",
+    "sentence-transformers",
+    "scikit-learn",
+]
