@@ -8,7 +8,7 @@ print(f"Python version: {sys.version}")
 try:
     import json
     import numpy as np
-    from db_manager_fixed import DBManager
+    from db_manager import DBManager
     print("Successfully imported db_manager_fixed")
 except Exception as e:
     print(f"Error importing db_manager_fixed: {e}")
