@@ -66,11 +66,8 @@ uv sync
 The application provides a user-friendly web interface built with Streamlit. To start the UI:
 
 ```powershell
-# Run via the launcher
-python run.py --ui
-
 # Or directly with streamlit
-streamlit run streamlit_app.py
+uv run streamlit run streamlit_app.py
 ```
 
 The web UI provides:
