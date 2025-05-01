@@ -43,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -fs http://localhost:3030/health || exit 1
 
 # Run the Streamlit application using the uv virtual environment
-CMD ["uv", "run", "streamlit", "run", "streamlit_app", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]

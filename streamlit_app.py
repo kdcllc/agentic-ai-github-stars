@@ -61,6 +61,52 @@ provider_options = {
 
 # Title and description
 st.title("GitHub Stars Analyzer")
+
+hide_streamlit_style = """
+                <style>
+                div[data-testid="stToolbar"] {
+                visibility: hidden;
+                height: 0%;
+                position: fixed;
+                }
+                div[data-testid="stDecoration"] {
+                visibility: hidden;
+                height: 0%;
+                position: fixed;
+                }
+                div[data-testid="stStatusWidget"] {
+                visibility: hidden;
+                height: 0%;
+                position: fixed;
+                }
+                #MainMenu {
+                visibility: hidden;
+                height: 0%;
+                }
+                header {
+                visibility: hidden;
+                height: 0%;
+                }
+                footer {
+                visibility: hidden;
+                height: 0%;
+                }
+                </style>
+                """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
+# st.markdown("""
+#     <style>
+#         .reportview-container {
+#             margin-top: -2em;
+#         }
+#         #MainMenu {visibility: hidden;}
+#         .stDeployButton {display:none;}
+#         footer {visibility: hidden;}
+#         #stDecoration {display:none;}
+#     </style>
+# """, unsafe_allow_html=True)
+
 st.markdown("""
 Fetch and analyze your GitHub starred repositories using AI. 
 This tool downloads README files, analyzes them, and provides searchable summaries.
@@ -89,7 +135,7 @@ with st.sidebar:
     # Provider-specific settings
     if ai_provider == "openai":
         st.markdown("### OpenAI Settings")
-        model = st.text_input("Model Name", value="gpt-3.5-turbo")
+        model = st.text_input("Model Name", value="gpt-4o")
         api_key = st.text_input("API Key", type="password", help="OpenAI API key")
         
     elif ai_provider == "azure":
@@ -120,7 +166,7 @@ with tab1:
     
     # Search functionality
     search_query = st.text_input("Search Query", help="Enter keywords or concepts to search for")
-    limit = st.slider("Result Limit", min_value=1, max_value=500, value=10)
+    limit = st.slider("Result Limit", min_value=1, max_value=50, value=10)
     
     if st.button("Search", key="search_button"):
         if search_query:

@@ -111,7 +111,7 @@ If you prefer to build and run the image manually without Docker Compose:
 docker build -t github-stars-analyzer .
 
 # Run the container
-docker run -p 8501:8501 -p 3030:3030 -v ./github_stars.db:/app/github_stars.db github-stars-analyzer
+docker run  kdcllc/agentic-ai-github-stars  -p 8501:8501 -p 3030:3030 -v ./github_stars.db:/app/github_stars.db github-stars-analyzer
 ```
 
 ## Troubleshooting

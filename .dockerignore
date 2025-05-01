@@ -25,7 +25,7 @@ ENV/
 *.swo
 
 # Local database files (will be mounted as volume)
-github_stars.db
+#github_stars.db
 
 # Logs
 *.log
