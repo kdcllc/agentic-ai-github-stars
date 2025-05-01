@@ -26,19 +26,21 @@ RUN uv sync --frozen --no-cache
 # Copy the rest of the application
 COPY . .
 
+RUN chmod 666 github_stars.db
+
 # Expose the Streamlit port and health check port
-EXPOSE 8501 8000
+EXPOSE 8501 3030
 
 # Set environment variables for Streamlit
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8501 \
-    HEALTHCHECK_PORT=8000 \
+    HEALTHCHECK_PORT=3030 \
     EMBEDDING_PROVIDER=sentence_transformer
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -fs http://localhost:8000/health || exit 1
+  CMD curl -fs http://localhost:3030/health || exit 1
 
 # Run the Streamlit application using the uv virtual environment
-CMD ["uv", "run", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "streamlit", "run", "streamlit_app", "--server.port=8501", "--server.address=0.0.0.0"]

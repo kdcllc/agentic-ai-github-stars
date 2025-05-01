@@ -7,12 +7,12 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8501:8501"  # Streamlit port
-      - "8000:8000"  # Health check port
+      - "3030:3030"  # Health check port
     volumes:
       - ./github_stars.db:/app/github_stars.db  # Mount the database file for persistence
     environment:
       - PORT=8501
-      - HEALTHCHECK_PORT=8000
+      - HEALTHCHECK_PORT=3030
       # Embedding provider configuration (choose one)
       - EMBEDDING_PROVIDER=sentence_transformer  # Options: sentence_transformer, openai, azure, ollama
       
@@ -28,7 +28,7 @@ services:
       # - OLLAMA_MODEL=mxbai-embed-large
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health"]
       interval: 30s
       timeout: 5s
       retries: 3

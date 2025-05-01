@@ -28,7 +28,7 @@ class HealthCheckHandler(http.server.SimpleHTTPRequestHandler):
         """Suppress logging to keep the console clean"""
         return
 
-def start_health_check_server(port=8000):
+def start_health_check_server(port=3030):
     """Start a health check server on the specified port"""
     with socketserver.TCPServer(("0.0.0.0", port), HealthCheckHandler) as httpd:
         print(f"Health check server started at port {port}")
@@ -37,7 +37,7 @@ def start_health_check_server(port=8000):
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="Health check server for Docker container")
-    parser.add_argument("--port", type=int, default=8000, help="Port to listen on")
+    parser.add_argument("--port", type=int, default=3030, help="Port to listen on")
     args = parser.parse_args()
     
     try:

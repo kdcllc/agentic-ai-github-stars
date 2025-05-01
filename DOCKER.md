@@ -94,7 +94,7 @@ The SQLite database file (`github_stars.db`) is mounted as a volume to ensure da
 
 ## Health Checks
 
-The container includes a health check endpoint at http://localhost:8000/health that returns a 200 OK response when the service is healthy. This is used by Docker to monitor the container's health status.
+The container includes a health check endpoint at http://localhost:3030/health that returns a 200 OK response when the service is healthy. This is used by Docker to monitor the container's health status.
 
 You can check the container health status with:
 
@@ -111,7 +111,7 @@ If you prefer to build and run the image manually without Docker Compose:
 docker build -t github-stars-analyzer .
 
 # Run the container
-docker run -p 8501:8501 -p 8000:8000 -v ./github_stars.db:/app/github_stars.db github-stars-analyzer
+docker run -p 8501:8501 -p 3030:3030 -v ./github_stars.db:/app/github_stars.db github-stars-analyzer
 ```
 
 ## Troubleshooting

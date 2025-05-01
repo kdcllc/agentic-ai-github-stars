@@ -45,7 +45,7 @@ st.set_page_config(
     page_title="GitHub Stars Analyzer",
     page_icon="⭐",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed",
 )
 
 # Initialize session state
@@ -108,10 +108,173 @@ with st.sidebar:
         model = st.text_input("Model Name", value="all-MiniLM-L6-v2")
 
 # Main content area with tabs
-tab1, tab2, tab3 = st.tabs(["Fetch & Process", "Search", "Export"])
+tab1, tab2, tab3, tab4 = st.tabs([ "Search", "Advance Search", "Fetch & Process", "Export"])
 
-# Tab 1: Fetch and Process
+# Tab 1: Search
 with tab1:
+    st.header("Search Repositories")
+    
+    # Initialize DB manager if not already done
+    if st.session_state.db_manager is None:
+        st.session_state.db_manager = DBManager(db_path=db_path)
+    
+    # Search functionality
+    search_query = st.text_input("Search Query", help="Enter keywords or concepts to search for")
+    limit = st.slider("Result Limit", min_value=1, max_value=500, value=10)
+    
+    if st.button("Search", key="search_button"):
+        if search_query:
+            results = st.session_state.db_manager.search_repositories(search_query, limit)
+            
+            if results:
+                st.success(f"Found {len(results)} results")                # Convert to DataFrame for better display
+                display_data = []
+                for result in results:
+                    # Properly handle technologies that might be in different formats
+                    techs = result.get('technologies', [])
+                    
+                    # Handle the case when it's a single string instead of a list
+                    if isinstance(techs, str):
+                        # Check if it's a single character-separated string
+                        if len(techs) > 0 and all(len(t) == 1 for t in techs.split(',')):
+                            # It's likely individual characters - join them back
+                            techs = [''.join(techs.split(','))]
+                        else:
+                            # Split by comma if it's a comma-separated string
+                            techs = [t.strip() for t in techs.split(',') if t.strip()]
+                    
+                    technologies_str = ", ".join(techs) if techs else "None"
+                    
+                    display_data.append({
+                        "Repository": f"{result['url']}",
+                        "Score": round(float(result.get('relevance_score', 0)), 3),
+                        "Stars": result.get('stars', 0),
+                        "Language": result.get('language', 'Unknown'),
+                        "Description": result.get('description', ''),
+                        "Summary": result.get('summary', ''),
+                        "Technologies": technologies_str,
+                        "Primary Goal": result.get('primary_goal', '')
+                    })
+                
+                # Display as table and expandable sections
+                df = pd.DataFrame(display_data)
+                
+                # Display top repositories in a table
+                st.dataframe(df[["Repository", "Score", "Stars", "Language"]], 
+                           column_config={"Repository": st.column_config.LinkColumn()},
+                           hide_index=True)
+                  # Show details for each repository
+                for i, result in enumerate(display_data):
+                    # Extract repository name from URL 
+                    repo_name = result['Repository'].split('/')[-2] + '/' + result['Repository'].split('/')[-1]
+                    with st.expander(f"{i+1}. {repo_name}"):
+                        st.markdown(f"**URL:** [{repo_name}]({result['Repository']})")
+                        st.markdown(f"**Description:** {result['Description']}")
+                        st.markdown(f"**Summary:** {result['Summary']}")
+                        st.markdown(f"**Technologies:** {result['Technologies']}")
+                        st.markdown(f"**Primary Goal:** {result['Primary Goal']}")
+            else:
+                st.info("No results found. Try a different search query or fetch repositories first.")
+        else:
+            st.warning("Please enter a search query")
+# Tab 2: Advanced Search
+with tab2:
+    
+    # Main area - Search functionality
+    st.header("Advance Search Repositories")
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        search_query = st.text_input("Enter search query:", placeholder="e.g., docker containerization")
+
+    with col2:
+        limit = st.number_input("Max results:", min_value=1, max_value=100, value=10)
+
+    # Search button
+    if st.button("Search") or search_query:
+        if search_query:
+            with st.spinner(f"Searching for '{search_query}'..."):
+                # Perform search using DBManager
+                results = st.session_state.db_manager.search_repositories(search_query, limit=limit)
+                
+                if results:
+                    st.success(f"Found {len(results)} repositories matching '{search_query}'")
+                    
+                    # Display results
+                    for i, repo in enumerate(results, 1):
+                        with st.expander(f"{i}. {repo['full_name']} (Score: {repo['relevance_score']:.2f})"):
+                            col1, col2 = st.columns([3, 1])
+                            
+                            with col1:
+                                st.markdown(f"**Description:** {repo['description'] or 'No description available'}")
+                                st.markdown(f"**Summary:** {repo['summary'] or 'No summary available'}")
+                                st.markdown(f"**Primary Goal:** {repo['primary_goal'] or 'Not specified'}")
+                                
+                            with col2:
+                                st.markdown(f"**Stars:** {repo['stars']}")
+                                st.markdown(f"**Language:** {repo['language'] or 'Not specified'}")
+                                
+                                # Display technologies as pills/tags
+                                if repo['technologies']:
+                                    st.markdown("**Technologies:**")
+                                    tech_html = ' '.join([f'<span style="background-color: #e6f3ff; color: #000000; padding: 2px 6px; border-radius: 10px; margin: 2px; font-size: 0.8em;">{tech}</span>' for tech in repo['technologies']])
+                                    st.markdown(tech_html, unsafe_allow_html=True)
+                            
+                            # Add a link to the repository
+                            st.markdown(f"[View on GitHub]({repo['url']})")
+                else:
+                    st.warning(f"No repositories found matching '{search_query}'")
+        else:
+            st.info("Enter a search query to find repositories")
+
+    # Filter by technology
+    st.header("Browse by Technology")
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        technology = st.text_input("Enter technology name:", placeholder="e.g., Python")
+
+    with col2:
+        tech_limit = st.number_input("Max tech results:", min_value=1, max_value=100, value=10, key="tech_limit")
+
+    # Filter button
+    if st.button("Filter") or technology:
+        if technology:
+            with st.spinner(f"Finding repositories using '{technology}'..."):
+                # Get repositories by technology
+                tech_results = st.session_state.db_manager.get_repositories_by_technology(technology, limit=tech_limit)
+                
+                if tech_results:
+                    st.success(f"Found {len(tech_results)} repositories using '{technology}'")
+                    
+                    # Display results
+                    for i, repo in enumerate(tech_results, 1):
+                        with st.expander(f"{i}. {repo['full_name']}"):
+                            col1, col2 = st.columns([3, 1])
+                            
+                            with col1:
+                                st.markdown(f"**Description:** {repo['description'] or 'No description available'}")
+                                st.markdown(f"**Summary:** {repo['summary'] or 'No summary available'}")
+                                st.markdown(f"**Primary Goal:** {repo['primary_goal'] or 'Not specified'}")
+                                
+                            with col2:
+                                st.markdown(f"**Stars:** {repo['stars']}")
+                                st.markdown(f"**Language:** {repo['language'] or 'Not specified'}")
+                                
+                                # Display technologies as pills/tags
+                                if repo['technologies']:
+                                    st.markdown("**Technologies:**")
+                                    tech_html = ' '.join([f'<span style="background-color: #e6f3ff;color: #000000; padding: 2px 6px; border-radius: 10px; margin: 2px; font-size: 0.8em;">{tech}</span>' for tech in repo['technologies']])
+                                    st.markdown(tech_html, unsafe_allow_html=True)
+                            
+                            # Add a link to the repository
+                            st.markdown(f"[View on GitHub]({repo['url']})")
+                else:
+                    st.warning(f"No repositories found using '{technology}'")
+        else:
+            st.info("Enter a technology name to filter repositories")
+# Tab 3: Fetch and Process
+with tab3:
     st.header("Fetch and Process Starred Repositories")
     
     # Input validation and processing
@@ -229,78 +392,9 @@ with tab1:
                 if st.button("Stop Processing", key="stop_processing_button", type="secondary"):
                     st.session_state.stop_processing = True
                     st.warning("Stopping... Please wait for current repository to finish.")
-                    st.experimental_rerun()
-
-# Tab 2: Search
-with tab2:
-    st.header("Search Repositories")
-    
-    # Initialize DB manager if not already done
-    if st.session_state.db_manager is None:
-        st.session_state.db_manager = DBManager(db_path=db_path)
-    
-    # Search functionality
-    search_query = st.text_input("Search Query", help="Enter keywords or concepts to search for")
-    limit = st.slider("Result Limit", min_value=1, max_value=500, value=10)
-    
-    if st.button("Search", key="search_button"):
-        if search_query:
-            results = st.session_state.db_manager.search_repositories(search_query, limit)
-            
-            if results:
-                st.success(f"Found {len(results)} results")                # Convert to DataFrame for better display
-                display_data = []
-                for result in results:
-                    # Properly handle technologies that might be in different formats
-                    techs = result.get('technologies', [])
-                    
-                    # Handle the case when it's a single string instead of a list
-                    if isinstance(techs, str):
-                        # Check if it's a single character-separated string
-                        if len(techs) > 0 and all(len(t) == 1 for t in techs.split(',')):
-                            # It's likely individual characters - join them back
-                            techs = [''.join(techs.split(','))]
-                        else:
-                            # Split by comma if it's a comma-separated string
-                            techs = [t.strip() for t in techs.split(',') if t.strip()]
-                    
-                    technologies_str = ", ".join(techs) if techs else "None"
-                    
-                    display_data.append({
-                        "Repository": f"{result['url']}",
-                        "Score": round(float(result.get('relevance_score', 0)), 3),
-                        "Stars": result.get('stars', 0),
-                        "Language": result.get('language', 'Unknown'),
-                        "Description": result.get('description', ''),
-                        "Summary": result.get('summary', ''),
-                        "Technologies": technologies_str,
-                        "Primary Goal": result.get('primary_goal', '')
-                    })
-                
-                # Display as table and expandable sections
-                df = pd.DataFrame(display_data)
-                
-                # Display top repositories in a table
-                st.dataframe(df[["Repository", "Score", "Stars", "Language"]], 
-                           column_config={"Repository": st.column_config.LinkColumn()},
-                           hide_index=True)
-                  # Show details for each repository
-                for i, result in enumerate(display_data):
-                    # Extract repository name from URL 
-                    repo_name = result['Repository'].split('/')[-2] + '/' + result['Repository'].split('/')[-1]
-                    with st.expander(f"{i+1}. {repo_name}"):
-                        st.markdown(f"**URL:** [{repo_name}]({result['Repository']})")
-                        st.markdown(f"**Description:** {result['Description']}")
-                        st.markdown(f"**Summary:** {result['Summary']}")
-                        st.markdown(f"**Technologies:** {result['Technologies']}")
-                        st.markdown(f"**Primary Goal:** {result['Primary Goal']}")
-            else:
-                st.info("No results found. Try a different search query or fetch repositories first.")
-        else:
-            st.warning("Please enter a search query")
-
-# Tab 3: Export
-with tab3:
+                    st.experimental_rerun()            
+# Tab 4: Export
+with tab4:
     st.header("Export Repositories")
     
     # Export the database to JSON
@@ -342,4 +436,4 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown("GitHub Stars Analyzer © 2025")
+st.markdown("King David Consulting LLC - GitHub Stars Analyzer © 2025")
