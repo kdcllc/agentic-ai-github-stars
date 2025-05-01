@@ -255,12 +255,28 @@ class GitHubStarsAnalyzer:
             # Parse the JSON response
             try:
                 summary_data = json.loads(result)
+                
+                # Ensure technologies is a list
+                if "technologies" in summary_data:
+                    if isinstance(summary_data["technologies"], str):
+                        # If technologies is a comma-separated string, convert to list
+                        summary_data["technologies"] = [t.strip() for t in summary_data["technologies"].split(',') if t.strip()]
+                else:
+                    summary_data["technologies"] = []
+                    
             except json.JSONDecodeError:
                 # If parsing fails, try to extract the JSON portion
                 json_match = re.search(r'({[\s\S]*})', result)
                 if json_match:
                     try:
                         summary_data = json.loads(json_match.group(1))
+                        # Ensure technologies is a list
+                        if "technologies" in summary_data:
+                            if isinstance(summary_data["technologies"], str):
+                                # If technologies is a comma-separated string, convert to list
+                                summary_data["technologies"] = [t.strip() for t in summary_data["technologies"].split(',') if t.strip()]
+                        else:
+                            summary_data["technologies"] = []
                     except:
                         summary_data = {
                             "summary": "Error parsing AI response",
@@ -268,10 +284,15 @@ class GitHubStarsAnalyzer:
                             "primary_goal": ""
                         }
                 else:
+                    # If no JSON found, see if we can extract a technologies list from the text
+                    tech_match = re.search(r'technologies["\':\s]+(.*?)[\n"]', result, re.IGNORECASE)
+                    summary_match = re.search(r'summary["\':\s]+(.*?)[\n"]', result, re.IGNORECASE)
+                    goal_match = re.search(r'primary_goal["\':\s]+(.*?)[\n"]', result, re.IGNORECASE)
+                    
                     summary_data = {
-                        "summary": "Error parsing AI response",
-                        "technologies": [],
-                        "primary_goal": ""
+                        "summary": summary_match.group(1) if summary_match else "Error parsing AI response",
+                        "technologies": [t.strip() for t in tech_match.group(1).split(',')] if tech_match else [],
+                        "primary_goal": goal_match.group(1) if goal_match else ""
                     }
             
         except Exception as e:

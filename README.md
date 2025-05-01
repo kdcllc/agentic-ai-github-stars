@@ -9,6 +9,8 @@ AI Agent that fetches your GitHub starred repositories, reads their README files
 - Generate AI-powered summaries of each repository including:
   - List of technologies/frameworks used
   - Primary goal or purpose of the repository
+- Semantic search through your starred repositories
+- Web UI for easy interaction (Streamlit)
 - Output results to a JSON file for further processing
 
 ## Requirements
@@ -58,6 +60,25 @@ The embedding manager can be configured in the web UI or through environment var
 # Install all dependencies from pyproject.toml
 uv sync
 ```
+
+## Using the Web UI
+
+The application provides a user-friendly web interface built with Streamlit. To start the UI:
+
+```powershell
+# Run via the launcher
+python run.py --ui
+
+# Or directly with streamlit
+streamlit run streamlit_app.py
+```
+
+The web UI provides:
+- Interactive form for fetching and analyzing GitHub stars
+- Real-time progress tracking during processing
+- Semantic search with detailed repository information
+- Export functionality with statistics
+- Support for all AI provider options
 
 ## Docker Deployment
 
