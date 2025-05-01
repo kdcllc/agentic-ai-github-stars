@@ -596,3 +596,57 @@ class DBManager:
             
         finally:
             conn.close()
+          
+    def get_repository_count(self) -> int:
+        """
+        Get the total number of repositories in the database
+        
+        Returns:
+            Integer count of repositories
+        """
+        conn = self._get_connection()
+        try:
+            cur = conn.cursor()
+            
+            cur.execute('SELECT COUNT(*) as count FROM repositories')
+            
+            result = cur.fetchone()
+            return result['count'] if result else 0
+            
+        finally:
+            conn.close()
+            
+    def get_top_languages(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get the most used programming languages across all repositories
+        
+        Args:
+            limit: Maximum number of languages to return
+            
+        Returns:
+            List of language dictionaries with counts
+        """
+        conn = self._get_connection()
+        try:
+            cur = conn.cursor()
+            
+            cur.execute('''
+            SELECT language as name, COUNT(*) as count
+            FROM repositories
+            WHERE language IS NOT NULL AND language != ''
+            GROUP BY language
+            ORDER BY count DESC
+            LIMIT ?
+            ''', (limit,))
+            
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "name": row["name"],
+                    "count": row["count"]
+                })
+            
+            return results
+            
+        finally:
+            conn.close()
