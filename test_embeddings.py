@@ -71,7 +71,7 @@ def main():
     
     # Build provider-specific kwargs
     provider_kwargs = {}
-      if args.provider == "sentence_transformer":
+    if args.provider == "sentence_transformer":
         if args.model:
             provider_kwargs["embedding_model_name"] = args.model
         else:
@@ -93,7 +93,7 @@ def main():
         if args.deployment:
             provider_kwargs["deployment"] = args.deployment
         else:
-            provider_kwargs["deployment"] = "embedding"
+            provider_kwargs["deployment"] = "text-embedding-3-small"
     elif args.provider == "ollama":
         if args.host:
             provider_kwargs["host"] = args.host

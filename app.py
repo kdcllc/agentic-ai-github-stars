@@ -5,43 +5,8 @@ This module creates a web interface for the GitHub Stars Analyzer using Streamli
 import streamlit as st
 import pandas as pd
 import os
-import threading
-import http.server
-import socketserver
 from db_manager import DBManager
-
-# Health check server
-def start_health_check_server(port=8000):
-    """Start a simple HTTP server for health check endpoint"""
-    class HealthCheckHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == '/health':
-                self.send_response(200)
-                self.send_header('Content-type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(b'OK')
-                return
-            else:
-                self.send_response(404)
-                self.end_headers()
-                
-        def log_message(self, format, *args):
-            # Suppress logging to keep the console clean
-            return
-
-    # Start health check server in a separate thread
-    def run_server():
-        try:
-            with socketserver.TCPServer(("0.0.0.0", port), HealthCheckHandler) as httpd:
-                print(f"Health check server started at port {port}")
-                httpd.serve_forever()
-        except OSError as e:
-            if e.errno == 10048:  # Port already in use
-                print(f"Port {port} is already in use. Health check server not started.")
-            else:
-                print(f"Error starting health check server: {e}")
-
-    threading.Thread(target=run_server, daemon=True).start()
+from health_check import start_health_check_server
 
 # Start health check server
 try:
