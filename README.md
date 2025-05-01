@@ -9,6 +9,8 @@ AI Agent that fetches your GitHub starred repositories, reads their README files
 - Generate AI-powered summaries of each repository including:
   - List of technologies/frameworks used
   - Primary goal or purpose of the repository
+- Semantic search through your starred repositories
+- Web UI for easy interaction (Streamlit)
 - Output results to a JSON file for further processing
 
 ## Requirements
@@ -19,6 +21,35 @@ AI Agent that fetches your GitHub starred repositories, reads their README files
   - OpenAI API Key
   - Azure OpenAI API Key and Endpoint
   - Ollama (running locally or on a server)
+  
+## Embedding Providers
+
+The application supports multiple embedding providers that can work in a Docker container without GPU:
+
+1. **Sentence Transformer (CPU)** - Default option, runs entirely locally on CPU
+2. **OpenAI** - Uses OpenAI's embedding API
+3. **Azure OpenAI** - Uses Azure OpenAI's embedding API  
+4. **Ollama** - Uses local Ollama instance for embeddings
+
+### Testing Embedding Providers
+
+You can test different embedding providers using the `test_embeddings.py` script:
+
+```powershell
+# Test with the default Sentence Transformer provider (CPU-only)
+python test_embeddings.py --provider sentence_transformer
+
+# Test with OpenAI
+python test_embeddings.py --provider openai --api_key "your_api_key"
+
+# Test with Azure OpenAI
+python test_embeddings.py --provider azure --endpoint "https://your-endpoint.openai.azure.com/" --deployment "your_deployment" --api_key "your_api_key"
+
+# Test with Ollama
+python test_embeddings.py --provider ollama --host "http://localhost:11434" --model "llama3"
+```
+
+The embedding manager can be configured in the web UI or through environment variables when running in Docker.
 
 ## Installation
 
@@ -28,6 +59,37 @@ AI Agent that fetches your GitHub starred repositories, reads their README files
 ```powershell
 # Install all dependencies from pyproject.toml
 uv sync
+```
+
+## Using the Web UI
+
+The application provides a user-friendly web interface built with Streamlit. To start the UI:
+
+```powershell
+# Run via the launcher
+python run.py --ui
+
+# Or directly with streamlit
+streamlit run streamlit_app.py
+```
+
+The web UI provides:
+- Interactive form for fetching and analyzing GitHub stars
+- Real-time progress tracking during processing
+- Semantic search with detailed repository information
+- Export functionality with statistics
+- Support for all AI provider options
+
+## Docker Deployment
+
+For running in Docker without GPU, see [DOCKER.md](DOCKER.md) for detailed instructions.
+
+Quick start:
+```bash
+docker compose up -d
+```
+
+This will start the application with the default CPU-based embedding provider.
 
 # Or activate the virtual environment and install
 uv venv

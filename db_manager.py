@@ -7,7 +7,7 @@ import json
 import sqlite3
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple, Union
-from sentence_transformers import SentenceTransformer
+from embedding_manager import EmbeddingManager
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -15,18 +15,39 @@ class DBManager:
     """
     Manages SQLite database with vector storage capabilities for GitHub starred repositories.
     """
-    
-    def __init__(self, db_path: str = "github_stars.db", embedding_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, db_path: str = "github_stars.db", 
+                 provider_type: str = "sentence_transformer", 
+                 **embedding_kwargs):
         """
         Initialize the database manager
         
         Args:
             db_path: Path to the SQLite database file
-            embedding_model: Name of the sentence transformer model for embeddings
+            provider_type: Type of embedding provider ('openai', 'azure', 'ollama', 'sentence_transformer')
+            **embedding_kwargs: Additional arguments to pass to the embedding provider
+                - For sentence_transformer: use model_name or defaults to "all-MiniLM-L6-v2"
+                - For other providers: use model parameter or provider-specific defaults
         """
         self.db_path = db_path
-        self.embedding_model = embedding_model
-        self.model = None
+          # Set default model if not provided
+        if provider_type == "sentence_transformer":
+            # Handle both the new embedding_model_name and old model_name parameters
+            if "embedding_model_name" in embedding_kwargs:
+                embedding_kwargs["model_name"] = embedding_kwargs.pop("embedding_model_name")
+            elif "model_name" not in embedding_kwargs:
+                embedding_kwargs["model_name"] = "all-MiniLM-L6-v2"
+        elif provider_type != "sentence_transformer" and "model" not in embedding_kwargs:
+            # Handle both model_name and embedding_model_name for backward compatibility
+            if "embedding_model_name" in embedding_kwargs:
+                embedding_kwargs["model"] = embedding_kwargs.pop("embedding_model_name")
+            elif "model_name" in embedding_kwargs:
+                embedding_kwargs["model"] = embedding_kwargs.pop("model_name")
+        
+        # Set up embedding manager
+        self.embedding_manager = EmbeddingManager(
+            provider_type=provider_type,
+            **embedding_kwargs
+        )
         
         # Initialize the database
         self._initialize_db()
@@ -91,18 +112,14 @@ class DBManager:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
-    
-    def _get_embedding_model(self):
-        """Get or initialize the embedding model"""
-        if self.model is None:
-            self.model = SentenceTransformer(self.embedding_model)
-        return self.model
+    def _get_embedding_manager(self):
+        """Get the embedding manager"""
+        return self.embedding_manager
     
     def _generate_embedding(self, text: str) -> List[float]:
         """Generate an embedding for the given text"""
-        model = self._get_embedding_model()
-        embedding = model.encode(text)
-        return embedding.tolist()
+        embedding_manager = self._get_embedding_manager()
+        return embedding_manager.get_embeddings(text)
     
     def store_repository(self, repo_data: Dict[str, Any]) -> int:
         """
@@ -140,22 +157,40 @@ class DBManager:
                 repo_id = cur.lastrowid
             else:
                 cur.execute("SELECT id FROM repositories WHERE full_name = ?", (repo_data["full_name"],))
-                repo_id = cur.fetchone()[0]
-            
-            # Insert technologies
+                repo_id = cur.fetchone()[0]            # Insert technologies
             if "technologies" in repo_data and repo_data["technologies"]:
                 # Clear existing technologies for this repository
                 cur.execute("DELETE FROM repository_technologies WHERE repository_id = ?", (repo_id,))
                 
-                for tech in repo_data["technologies"]:
+                # Handle different formats of technologies field
+                technologies = repo_data["technologies"]
+                
+                # If technologies is a string instead of a list, convert it to a list
+                if isinstance(technologies, str):
+                    # Check if it's just a single character string (like "P, y, t, h, o, n")
+                    if len(technologies) > 0 and all(len(t) == 1 for t in technologies.split(',')):
+                        # It's likely individual characters - join them back
+                        technologies = [''.join([t.strip() for t in technologies.split(',')])]
+                    else:
+                        # Split by comma if it's a comma-separated string
+                        technologies = [t.strip() for t in technologies.split(',') if t.strip()]
+                
+                # Remove duplicates from technologies list
+                unique_technologies = list(set(technologies))
+                
+                for tech in unique_technologies:
+                    # Skip empty technologies
+                    if not tech or tech.strip() == '':
+                        continue
+                        
                     # Insert or get technology
                     cur.execute("INSERT OR IGNORE INTO technologies (name) VALUES (?)", (tech,))
                     cur.execute("SELECT id FROM technologies WHERE name = ?", (tech,))
                     tech_id = cur.fetchone()[0]
                     
-                    # Link technology to repository
+                    # Link technology to repository - use INSERT OR IGNORE to handle duplicates
                     cur.execute('''
-                    INSERT INTO repository_technologies (repository_id, technology_id)
+                    INSERT OR IGNORE INTO repository_technologies (repository_id, technology_id)
                     VALUES (?, ?)
                     ''', (repo_id, tech_id))
             
@@ -251,78 +286,182 @@ class DBManager:
                 ''', (repo_id,))
                 
                 technologies = [row[0] for row in cur.fetchall()]
-                repo_data["technologies"] = technologies
-                
+                repo_data["technologies"] = technologies                
                 repos.append(repo_data)
             
             return repos
             
         finally:
             conn.close()
-    
-    def search_repositories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+            
+    def search_repositories(self, query_text: str, limit: int = 10, min_score: float = 0.0) -> List[Dict]:
         """
-        Search repositories by semantic similarity
+        Search for repositories using vector similarity
         
         Args:
-            query: Search query
+            query_text: The search query
             limit: Maximum number of results to return
+            min_score: Minimum similarity score threshold
             
         Returns:
-            List of repository data dictionaries ordered by relevance
-        """
-        # Generate query embedding
-        query_embedding = np.array(self._generate_embedding(query)).reshape(1, -1)
+            List of repository dictionaries with added relevance_score
+        """        # Get embedding for query
+        query_embedding = self.embedding_manager.get_embeddings(query_text)
         
-        # Get all repositories and their embeddings
-        conn = self._get_connection()
-        try:
-            cur = conn.cursor()
+        # Search using the embedding
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+              # Join with repository_embeddings table to get embeddings
+            cursor.execute("""
+                SELECT r.*, e.embedding 
+                FROM repositories r
+                LEFT JOIN repository_embeddings e ON r.id = e.repository_id
+            """)
             
-            # Get repositories with embeddings
-            cur.execute('''
-            SELECT r.*, e.embedding 
-            FROM repositories r
-            JOIN repository_embeddings e ON r.id = e.repository_id
-            ''')
-            
-            # Calculate similarity scores
             results = []
-            for row in cur.fetchall():
-                repo_id = row["id"]
-                repo_data = dict(row)
+            for row in cursor:
+                row_dict = dict(row)
                 
-                # Parse embedding from JSON
-                repo_embedding = np.array(json.loads(row["embedding"])).reshape(1, -1)
+                # Get embedding as numpy array
+                if row_dict.get('embedding') is None:
+                    continue
                 
-                # Calculate cosine similarity
-                similarity = float(cosine_similarity(query_embedding, repo_embedding)[0][0])
+                # Parse embedding from JSON string
+                try:
+                    embedding_json = row_dict['embedding']
+                    embedding = np.array(json.loads(embedding_json)).reshape(1, -1)
+                    query_embedding_reshaped = np.array(query_embedding).reshape(1, -1)
+                except Exception as e:
+                    print(f"Error parsing embedding: {e}")
+                    continue
                 
-                # Get technologies for this repository
-                cur.execute('''
-                SELECT t.name FROM technologies t
-                JOIN repository_technologies rt ON t.id = rt.technology_id
-                WHERE rt.repository_id = ?
-                ''', (repo_id,))
+                # Calculate similarity
+                similarity = cosine_similarity(query_embedding_reshaped, embedding)[0][0]
                 
-                technologies = [tech_row[0] for tech_row in cur.fetchall()]
-                
-                # Remove embedding from the results (no need to send it back to user)
-                if "embedding" in repo_data:
-                    del repo_data["embedding"]
+                # Add similarity score to result
+                if similarity >= min_score:
+                    repo_dict = dict(row_dict)
                     
-                repo_data["technologies"] = technologies
-                repo_data["relevance_score"] = similarity
-                
-                results.append(repo_data)
+                    # Get technologies for this repository
+                    repo_id = repo_dict['id']
+                    cursor2 = conn.cursor()
+                    cursor2.execute("""
+                        SELECT t.name FROM technologies t
+                        JOIN repository_technologies rt ON t.id = rt.technology_id
+                        WHERE rt.repository_id = ?
+                    """, (repo_id,))
+                    
+                    # Store technologies as a list
+                    technologies = [tech[0] for tech in cursor2.fetchall()]
+                    repo_dict['technologies'] = technologies
+                    
+                    # Remove embedding binary data for cleaner results
+                    if 'embedding' in repo_dict:
+                        del repo_dict['embedding']
+                    
+                    # Add similarity score
+                    repo_dict['relevance_score'] = float(similarity)
+                    
+                    results.append(repo_dict)
             
-            # Sort by similarity score (descending)
-            results.sort(key=lambda x: x["relevance_score"], reverse=True)
+            # Sort by similarity score
+            results.sort(key=lambda x: x['relevance_score'], reverse=True)
             
-            # Limit results
             return results[:limit]
             
-        finally:            conn.close()
+    def get_repository_count(self) -> int:
+        """
+        Get the total count of repositories in the database
+        
+        Returns:
+            int: Number of repositories stored in the database
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM repositories")
+                count = cursor.fetchone()[0]
+                return count
+        except Exception as e:
+            print(f"Error getting repository count: {e}")
+            return 0
+
+    def get_top_languages(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get the most common programming languages in the stored repositories
+        
+        Args:
+            limit: Maximum number of languages to return
+            
+        Returns:
+            List of dictionaries with language name and count
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Skip null/empty languages and count occurrences
+                cursor.execute("""
+                    SELECT language as name, COUNT(*) as count 
+                    FROM repositories 
+                    WHERE language IS NOT NULL AND language != ''
+                    GROUP BY language 
+                    ORDER BY count DESC 
+                    LIMIT ?
+                """, (limit,))
+                
+                result = [{"name": row[0], "count": row[1]} for row in cursor.fetchall()]
+                return result
+        except Exception as e:
+            print(f"Error getting top languages: {e}")
+            return []
+
+    def get_top_technologies(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get the most common technologies mentioned in the repositories
+        
+        Args:
+            limit: Maximum number of technologies to return
+            
+        Returns:
+            List of dictionaries with technology name and count
+        """
+        try:
+            # This requires extracting from the technologies JSON array in the DB
+            with sqlite3.connect(self.db_path) as conn:
+                # Enable JSON support
+                conn.enable_load_extension(True)
+                try:
+                    conn.load_extension("json1")
+                except:
+                    print("JSON1 extension not available, using fallback method")
+                
+                # Create a lookup table of all technologies
+                tech_counts = {}
+                
+                cursor = conn.cursor()
+                cursor.execute("SELECT technologies FROM repositories WHERE technologies IS NOT NULL")
+                
+                for row in cursor.fetchall():
+                    try:
+                        # Parse technologies JSON array
+                        techs = json.loads(row[0])
+                        for tech in techs:
+                            if tech in tech_counts:
+                                tech_counts[tech] += 1
+                            else:
+                                tech_counts[tech] = 1
+                    except:
+                        # Skip if technologies can't be parsed as JSON
+                        continue
+                
+                # Sort and limit the results
+                sorted_techs = sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+                result = [{"name": name, "count": count} for name, count in sorted_techs]
+                return result
+        except Exception as e:
+            print(f"Error getting top technologies: {e}")
+            return []
     
     def import_from_json(self, json_file: str) -> int:
         """
@@ -454,6 +593,60 @@ class DBManager:
                 repos.append(repo_data)
             
             return repos
+            
+        finally:
+            conn.close()
+          
+    def get_repository_count(self) -> int:
+        """
+        Get the total number of repositories in the database
+        
+        Returns:
+            Integer count of repositories
+        """
+        conn = self._get_connection()
+        try:
+            cur = conn.cursor()
+            
+            cur.execute('SELECT COUNT(*) as count FROM repositories')
+            
+            result = cur.fetchone()
+            return result['count'] if result else 0
+            
+        finally:
+            conn.close()
+            
+    def get_top_languages(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get the most used programming languages across all repositories
+        
+        Args:
+            limit: Maximum number of languages to return
+            
+        Returns:
+            List of language dictionaries with counts
+        """
+        conn = self._get_connection()
+        try:
+            cur = conn.cursor()
+            
+            cur.execute('''
+            SELECT language as name, COUNT(*) as count
+            FROM repositories
+            WHERE language IS NOT NULL AND language != ''
+            GROUP BY language
+            ORDER BY count DESC
+            LIMIT ?
+            ''', (limit,))
+            
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "name": row["name"],
+                    "count": row["count"]
+                })
+            
+            return results
             
         finally:
             conn.close()
