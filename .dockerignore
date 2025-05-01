@@ -1,0 +1,42 @@
+# Git files
+.git
+.gitignore
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+
+# Environment files
+.env
+.venv
+.venv/
+env/
+venv/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local database files (will be mounted as volume)
+github_stars.db
+
+# Logs
+*.log
+
+# Documentation
+documentation/
+docs/
+*.md
+!README.md
+!DOCKER.md
+
+# Test files
+test_*.py
+tests/

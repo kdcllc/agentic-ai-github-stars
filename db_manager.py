@@ -7,7 +7,7 @@ import json
 import sqlite3
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple, Union
-from sentence_transformers import SentenceTransformer
+from embedding_manager import EmbeddingManager
 from sklearn.metrics.pairwise import cosine_similarity
 
 
@@ -15,18 +15,39 @@ class DBManager:
     """
     Manages SQLite database with vector storage capabilities for GitHub starred repositories.
     """
-    
-    def __init__(self, db_path: str = "github_stars.db", embedding_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, db_path: str = "github_stars.db", 
+                 provider_type: str = "sentence_transformer", 
+                 **embedding_kwargs):
         """
         Initialize the database manager
         
         Args:
             db_path: Path to the SQLite database file
-            embedding_model: Name of the sentence transformer model for embeddings
+            provider_type: Type of embedding provider ('openai', 'azure', 'ollama', 'sentence_transformer')
+            **embedding_kwargs: Additional arguments to pass to the embedding provider
+                - For sentence_transformer: use model_name or defaults to "all-MiniLM-L6-v2"
+                - For other providers: use model parameter or provider-specific defaults
         """
         self.db_path = db_path
-        self.embedding_model = embedding_model
-        self.model = None
+          # Set default model if not provided
+        if provider_type == "sentence_transformer":
+            # Handle both the new embedding_model_name and old model_name parameters
+            if "embedding_model_name" in embedding_kwargs:
+                embedding_kwargs["model_name"] = embedding_kwargs.pop("embedding_model_name")
+            elif "model_name" not in embedding_kwargs:
+                embedding_kwargs["model_name"] = "all-MiniLM-L6-v2"
+        elif provider_type != "sentence_transformer" and "model" not in embedding_kwargs:
+            # Handle both model_name and embedding_model_name for backward compatibility
+            if "embedding_model_name" in embedding_kwargs:
+                embedding_kwargs["model"] = embedding_kwargs.pop("embedding_model_name")
+            elif "model_name" in embedding_kwargs:
+                embedding_kwargs["model"] = embedding_kwargs.pop("model_name")
+        
+        # Set up embedding manager
+        self.embedding_manager = EmbeddingManager(
+            provider_type=provider_type,
+            **embedding_kwargs
+        )
         
         # Initialize the database
         self._initialize_db()
@@ -91,18 +112,14 @@ class DBManager:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
-    
-    def _get_embedding_model(self):
-        """Get or initialize the embedding model"""
-        if self.model is None:
-            self.model = SentenceTransformer(self.embedding_model)
-        return self.model
+    def _get_embedding_manager(self):
+        """Get the embedding manager"""
+        return self.embedding_manager
     
     def _generate_embedding(self, text: str) -> List[float]:
         """Generate an embedding for the given text"""
-        model = self._get_embedding_model()
-        embedding = model.encode(text)
-        return embedding.tolist()
+        embedding_manager = self._get_embedding_manager()
+        return embedding_manager.get_embeddings(text)
     
     def store_repository(self, repo_data: Dict[str, Any]) -> int:
         """
@@ -259,7 +276,6 @@ class DBManager:
             
         finally:
             conn.close()
-    
     def search_repositories(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Search repositories by semantic similarity
@@ -272,7 +288,7 @@ class DBManager:
             List of repository data dictionaries ordered by relevance
         """
         # Generate query embedding
-        query_embedding = np.array(self._generate_embedding(query)).reshape(1, -1)
+        query_embedding = self._generate_embedding(query)
         
         # Get all repositories and their embeddings
         conn = self._get_connection()
@@ -293,10 +309,10 @@ class DBManager:
                 repo_data = dict(row)
                 
                 # Parse embedding from JSON
-                repo_embedding = np.array(json.loads(row["embedding"])).reshape(1, -1)
+                repo_embedding = json.loads(row["embedding"])
                 
-                # Calculate cosine similarity
-                similarity = float(cosine_similarity(query_embedding, repo_embedding)[0][0])
+                # Calculate cosine similarity using embedding manager
+                similarity = self.embedding_manager.calculate_similarity(query_embedding, repo_embedding)
                 
                 # Get technologies for this repository
                 cur.execute('''

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  github-stars-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"  # Streamlit port
+      - "8000:8000"  # Health check port
+    volumes:
+      - ./github_stars.db:/app/github_stars.db  # Mount the database file for persistence
+    environment:
+      - PORT=8501
+      - HEALTHCHECK_PORT=8000
+      # Embedding provider configuration (choose one)
+      - EMBEDDING_PROVIDER=sentence_transformer  # Options: sentence_transformer, openai, azure, ollama
+      
+      # OpenAI configuration (if using OpenAI provider)
+      # - OPENAI_API_KEY=your_api_key
+      
+      # Azure OpenAI configuration (if using Azure provider)
+      # - AZURE_OPENAI_API_KEY=your_api_key
+      # - AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
+      # - AZURE_OPENAI_EMBEDDING_DEPLOYMENT=your_deployment_name
+        # Ollama configuration (if using Ollama provider)
+      # - OLLAMA_HOST=http://ollama:11434
+      # - OLLAMA_MODEL=mxbai-embed-large
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    
+  # Uncomment if you want to use Ollama locally
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   restart: unless-stopped
+
+# Uncomment if using Ollama service
+# volumes:
+#   ollama_data:
