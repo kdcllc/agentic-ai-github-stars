@@ -2,6 +2,20 @@
 
 AI Agent that fetches your GitHub starred repositories, reads their README files, and creates summaries of technologies used and primary goals.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/kdcllc/agentic-ai-github-stars/blob/main/LICENSE)
+
+![I stand with Israel](./images/IStandWithIsrael.png)
+
+## Hire Me
+
+Please send [email](mailto:kingdavidconsulting@gmail.com) if you consider hiring me.
+
+[![buymeacoffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/vyve0og)
+
+## Give a Star! :star:
+
+If you like or are using this project to learn or start your solution, please give it a star. Thanks!
+
 ## Features
 
 - Fetch all starred repositories for a GitHub user
@@ -168,44 +182,6 @@ uv run main.py <github_username> --ai-provider ollama --ollama-url http://your-o
 # Search repositories by semantic similarity
 uv run main.py --search "docker containerization" --db github_stars.db --username username
 ```
-
-## OpenAI SDK v1.0+ Integration
-
-This project uses the OpenAI Python SDK v1.0+ which includes several important changes:
-
-### Key Features
-
-1. **Client-based approach**: The new SDK uses a client-based approach instead of module-level functions
-   ```python
-   # Old approach (pre-1.0)
-   import openai
-   openai.api_key = "your-api-key"
-   response = openai.ChatCompletion.create(...)
-   
-   # New approach (1.0+)
-   from openai import OpenAI
-   client = OpenAI(api_key="your-api-key")
-   response = client.chat.completions.create(...)
-   ```
-
-2. **Azure OpenAI integration**: Dedicated `AzureOpenAI` client
-   ```python
-   from openai import AzureOpenAI
-   client = AzureOpenAI(
-       api_key="your-api-key",
-       api_version="2023-05-15",
-       azure_endpoint="https://your-resource.openai.azure.com"
-   )
-   response = client.chat.completions.create(deployment_name="your-deployment", ...)
-   ```
-
-3. **Response objects**: Strongly typed response objects with proper attributes
-   ```python
-   # Access response data
-   content = response.choices[0].message.content
-   ```
-
-For more information, see the [OpenAI Python API Migration Guide](https://github.com/openai/openai-python/blob/main/MIGRATION_GUIDE.md).
 
 ## Example Output
 
